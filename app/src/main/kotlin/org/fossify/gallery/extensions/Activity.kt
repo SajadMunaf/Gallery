@@ -269,14 +269,19 @@ fun BaseSimpleActivity.removeNoMedia(path: String, callback: (() -> Unit)? = nul
     }
 
     tryDeleteFileDirItem(file.toFileDirItem(applicationContext), false, false) {
-        callback?.invoke()
         deleteFromMediaStore(file.absolutePath) { needsRescan ->
             if (needsRescan) {
                 rescanAndDeletePath(path) {
                     rescanFolderMedia(path)
+                    runOnUiThread {
+                        callback?.invoke()
+                    }
                 }
             } else {
                 rescanFolderMedia(path)
+                runOnUiThread {
+                    callback?.invoke()
+                }
             }
         }
     }
@@ -298,12 +303,18 @@ fun BaseSimpleActivity.toggleFileVisibility(oldPath: String, hide: Boolean, call
 
     val newPath = "$path/$filename"
     renameFile(oldPath, newPath, false) { success, useAndroid30Way ->
-        runOnUiThread {
-            callback?.invoke(newPath)
+        if (!success) {
+            runOnUiThread {
+                callback?.invoke(oldPath)
+            }
+            return@renameFile
         }
 
         ensureBackgroundThread {
             updateDBMediaPath(oldPath, newPath)
+            runOnUiThread {
+                callback?.invoke(newPath)
+            }
         }
     }
 }
@@ -375,6 +386,7 @@ fun BaseSimpleActivity.movePathsInRecycleBin(paths: ArrayList<String>, callback:
                     }
                 } catch (e: Exception) {
                     showErrorToast(e)
+                    callback?.invoke(false)
                     return@ensureBackgroundThread
                 } finally {
                     inputStream?.close()
@@ -395,6 +407,7 @@ fun BaseSimpleActivity.movePathsInRecycleBin(paths: ArrayList<String>, callback:
                     }
                 } catch (e: Exception) {
                     showErrorToast(e)
+                    callback?.invoke(false)
                     return@ensureBackgroundThread
                 }
             }
